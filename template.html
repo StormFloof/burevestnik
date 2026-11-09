@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Буревестник — процедурный галеон</title>
+<style>
+:root{--gold:#e0b25a;--bg:rgba(10,12,18,.6);--line:rgba(255,220,160,.16)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#05070b;font:13px/1.35 "Segoe UI",system-ui,sans-serif;color:#eadfca;user-select:none;-webkit-user-select:none}
+canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none;cursor:grab;touch-action:none}
+canvas#c.drag{cursor:grabbing}
+#loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:radial-gradient(ellipse at 50% 60%,#1a2233,#05070b 70%);z-index:20;transition:opacity 1.4s}
+#loading.hide{opacity:0;pointer-events:none}
+#loading h1{margin:0;font:600 34px/1 Georgia,serif;letter-spacing:.32em;color:var(--gold);text-shadow:0 0 24px rgba(224,178,90,.35)}
+#loading .bar{width:min(420px,70vw);height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+#loading .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#a8742c,#ffd98a);transition:width .25s}
+#loadText{opacity:.7;font-size:12px;letter-spacing:.08em}
+#ui{position:fixed;left:14px;top:14px;width:276px;padding:12px 14px 10px;background:var(--bg);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;z-index:5;transition:opacity .3s,transform .3s}
+#ui.hidden,#hud.hidden,#help.hidden{opacity:0;pointer-events:none}
+#ui.hidden{transform:translateX(-20px)}
+#ui h2{margin:0 0 8px;font:600 13px Georgia,serif;letter-spacing:.24em;color:var(--gold)}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0}
+.row label{width:62px;opacity:.75;font-size:12px}
+.row input[type=range]{flex:1;accent-color:#d9a24a;min-width:0}
+.row .val{width:42px;text-align:right;font-variant-numeric:tabular-nums;opacity:.8;font-size:12px}
+.btns{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+button{flex:1 1 auto;padding:6px 8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:#eadfca;border-radius:7px;font:12px "Segoe UI",system-ui,sans-serif;cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{background:rgba(255,220,160,.12)}
+button.on{background:rgba(217,162,74,.28);border-color:rgba(255,210,140,.5);color:#fff}
+button.fire{background:rgba(160,40,30,.32);border-color:rgba(255,120,90,.32)}
+button.fire:hover{background:rgba(200,60,40,.5)}
+.sep{height:1px;background:var(--line);margin:9px 0}
+#hud{position:fixed;right:16px;bottom:16px;display:flex;gap:12px;align-items:flex-end;z-index:5;pointer-events:none;transition:opacity .3s}
+.gauge{background:var(--bg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;padding:10px 14px;text-align:center;min-width:92px}
+.gauge b{display:block;font:600 24px Georgia,serif;color:#fff}
+.gauge span{font-size:10.5px;opacity:.65;letter-spacing:.12em}
+#compass{width:100px;height:100px;display:block}
+#help{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 14px;font-size:11.5px;opacity:.85;z-index:4;white-space:nowrap;transition:opacity .3s}
+#fps{position:fixed;right:12px;top:10px;font-size:11px;opacity:.45;z-index:5}
+#toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);padding:8px 16px;background:var(--bg);border:1px solid var(--line);border-radius:9px;opacity:0;transition:opacity .4s;z-index:6;pointer-events:none;font:14px Georgia,serif;letter-spacing:.06em}
+#toast.show{opacity:1}
+@media (max-width:760px){#help{display:none}#ui{width:236px}}
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0"></canvas>
+<div id="loading"><h1>БУРЕВЕСТНИК</h1><div class="bar"><i id="loadBar"></i></div><div id="loadText">Закладываем киль…</div></div>
+<div id="ui">
+ <h2>БУРЕВЕСТНИК</h2>
+ <div class="row"><label>Время</label><input id="tod" type="range" min="0" max="24" step="0.02"><span class="val" id="todV"></span></div>
+ <div class="btns"><button data-tod="6.1">Рассвет</button><button data-tod="13">День</button><button data-tod="18.72">Закат</button><button data-tod="23.5">Ночь</button></div>
+ <div class="row"><label>Шторм</label><input id="storm" type="range" min="0" max="1" step="0.01"><span class="val" id="stormV"></span></div>
+ <div class="row"><label>Паруса</label><input id="sail" type="range" min="0" max="1" step="0.01"><span class="val" id="sailV"></span></div>
+ <div class="row"><label>Громкость</label><input id="vol" type="range" min="0" max="1" step="0.01" value="0.5"><span class="val" id="volV">50%</span></div>
+ <div class="sep"></div>
+ <div class="btns" id="camBtns"><button data-cam="orbit">Орбита</button><button data-cam="cine">Кино</button><button data-cam="deck">Палуба</button></div>
+ <div class="btns"><button class="fire" id="fireL">Залп левым · Q</button><button class="fire" id="fireR">Залп правым · E</button></div>
+ <div class="btns"><button id="autoBtn">Автопилот</button><button id="sndBtn">Звук</button><button id="timeBtn">Время идёт</button></div>
+</div>
+<div id="hud"><div class="gauge"><b id="spd">0.0</b><span>УЗЛОВ</span></div><div class="gauge"><canvas id="compass" width="200" height="200"></canvas></div></div>
+<div id="help">A/D — руль · W/S — паруса · Q/E — залп · C — камера · 1–4 — время · T — шторм · P — автопилот · H — скрыть · мышь — обзор, колесо — зум</div>
+<div id="fps"></div>
+<div id="toast"></div>
+<script>
+/*__THREE__*/
+(async function(){'use strict';
+/*__APP__*/
+})().catch(e=>{console.error(e);const t=document.getElementById('loadText');if(t)t.textContent='Ошибка: '+(e&&e.message||e);});
+</script>
+</body>
+</html>
